@@ -37,37 +37,30 @@ import com.protonvpn.android.R
 import com.protonvpn.android.base.ui.SimpleModalBottomSheet
 import com.protonvpn.android.databinding.FreeConnectionsInfoBinding
 import com.protonvpn.android.databinding.InfoFreeCountryItemBinding
-import com.protonvpn.android.telemetry.UpgradeTrigger
 import com.protonvpn.android.ui.planupgrade.UpgradeDialogLauncherVM
 import com.protonvpn.android.utils.CountryTools
 import com.protonvpn.android.utils.ViewUtils.toPx
 import me.proton.core.compose.theme.ProtonTheme
 import me.proton.core.compose.theme.subheadlineNorm
-import me.proton.core.presentation.utils.onClick
 
 private const val FLAG_WIDTH_DP = 24
 private const val FLAG_HEIGHT_DP = 16
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun FreeConnectionsInfoBottomSheet(
     onDismissRequest: () -> Unit,
     viewModel: FreeConnectionsInfoViewModel = hiltViewModel(),
     upgradeDialogLauncher: UpgradeDialogLauncherVM = hiltViewModel(),
 ) {
-    val context = LocalContext.current
     FreeConnectionsInfoBottomSheet(
         onDismissRequest = onDismissRequest,
-        onUpgrade = {
-            upgradeDialogLauncher.launchCountries(context, UpgradeTrigger.HOME, null)
-            onDismissRequest()
-        },
         freeCountries = viewModel.freeCountriesCodes
     )
 }
 @Composable
 private fun FreeConnectionsInfoBottomSheet(
     onDismissRequest: () -> Unit,
-    onUpgrade: () -> Unit,
     freeCountries: List<String>,
 ) {
     SimpleModalBottomSheet(
@@ -83,7 +76,7 @@ private fun FreeConnectionsInfoBottomSheet(
             )
             val context = LocalContext.current
             AndroidViewBinding(FreeConnectionsInfoBinding::inflate) {
-                setupViews(context, onUpgrade, freeCountries)
+                setupViews(context, freeCountries)
             }
         }
     }
@@ -91,13 +84,11 @@ private fun FreeConnectionsInfoBottomSheet(
 
 private fun FreeConnectionsInfoBinding.setupViews(
     context: Context,
-    onUpgrade: () -> Unit,
     freeCountries: List<String>
 ) {
     locationsHeader.text =
         context.getString(R.string.free_connections_info_server_locations, freeCountries.size)
-    upsellBanner.textTitle.setText(R.string.free_connections_info_banner_text)
-    upsellBanner.root.onClick(onUpgrade)
+    upsellBanner.root.visibility = View.GONE
     for (country in freeCountries) {
         val item = InfoFreeCountryItemBinding.inflate(
             LayoutInflater.from(context), freeCountriesContainer, true)

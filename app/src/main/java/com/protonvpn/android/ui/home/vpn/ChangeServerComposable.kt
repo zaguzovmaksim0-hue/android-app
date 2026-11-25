@@ -60,15 +60,14 @@ import com.protonvpn.android.base.ui.ProtonOutlinedNeutralButton
 import com.protonvpn.android.base.ui.ProtonVpnPreview
 import com.protonvpn.android.base.ui.SimpleModalBottomSheet
 import com.protonvpn.android.base.ui.VpnOutlinedNeutralButton
-import com.protonvpn.android.base.ui.VpnSolidButton
 import com.protonvpn.android.base.ui.protonOutlinedNeutralButtonColors
 import com.protonvpn.android.redesign.vpn.ui.ChangeServerViewState
 import me.proton.core.compose.theme.ProtonTheme
 import me.proton.core.compose.theme.defaultNorm
 import me.proton.core.compose.theme.defaultUnspecified
-import me.proton.core.compose.theme.defaultWeak
 import me.proton.core.presentation.R as CoreR
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun ChangeServerButton(
     state: ChangeServerViewState,
@@ -85,7 +84,6 @@ fun ChangeServerButton(
                 is ChangeServerViewState.Disabled -> {}
                 is ChangeServerViewState.Locked -> {
                     dialogShown = true
-                    onUpgradeButtonShown()
                 }
             }
         },
@@ -155,7 +153,6 @@ fun ChangeServerButton(
                 dialogShown = false
                 onChangeServerClick()
             },
-            onUpgradeClick = onUpgradeClick,
         )
     }
 }
@@ -165,7 +162,6 @@ private fun ChangeServerBottomSheetComposable(
     state: ChangeServerViewState?,
     onDismissRequest: () -> Unit,
     onChangeServerClick: () -> Unit,
-    onUpgradeClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     SimpleModalBottomSheet(
@@ -175,7 +171,7 @@ private fun ChangeServerBottomSheetComposable(
         UpgradeModalContent(
             state = state,
             onChangeServerClick = onChangeServerClick,
-            onUpgradeClick = onUpgradeClick,
+            onDismissRequest = onDismissRequest,
         )
     }
 }
@@ -184,7 +180,7 @@ private fun ChangeServerBottomSheetComposable(
 private fun UpgradeModalContent(
     state: ChangeServerViewState?,
     onChangeServerClick: () -> Unit,
-    onUpgradeClick: () -> Unit,
+    onDismissRequest: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -193,51 +189,53 @@ private fun UpgradeModalContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            val animatedProgress = remember(state is ChangeServerViewState.Locked) {
-                Animatable(if (state is ChangeServerViewState.Locked) state.progress else 0f)
-            }
-            if (state is ChangeServerViewState.Locked) {
-                val animationTimeMs = remember(animatedProgress) { state.remainingTimeInSeconds * 1_000 }
-                LaunchedEffect(animatedProgress) {
-                    animatedProgress.animateTo(0f, tween(animationTimeMs, easing = LinearEasing))
+        if (state is ChangeServerViewState.Locked || state == ChangeServerViewState.Unlocked) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                val animatedProgress = remember(state is ChangeServerViewState.Locked) {
+                    Animatable(if (state is ChangeServerViewState.Locked) state.progress else 0f)
                 }
-            }
-            val remainingTimeText =
-                if (state is ChangeServerViewState.Locked) formatTime(state) else "00:00"
+                if (state is ChangeServerViewState.Locked) {
+                    val animationTimeMs = remember(animatedProgress) { state.remainingTimeInSeconds * 1_000 }
+                    LaunchedEffect(animatedProgress) {
+                        animatedProgress.animateTo(0f, tween(animationTimeMs, easing = LinearEasing))
+                    }
+                }
+                val remainingTimeText =
+                    if (state is ChangeServerViewState.Locked) formatTime(state) else "00:00"
 
-            val timeLeftContentDescription = if (state is ChangeServerViewState.Locked)
-                contentDescriptionAvailableTime(state)
-            else
-                stringResource(R.string.server_change_progress_finished_contend_description)
-            CircularProgressIndicator(
-                progress = animatedProgress.value,
-                strokeWidth = 8.dp,
-                color = ProtonTheme.colors.brandNorm,
-                trackColor = if (state is ChangeServerViewState.Locked) ProtonTheme.colors.backgroundSecondary
-                    else ProtonTheme.colors.notificationSuccess,
-                strokeCap = StrokeCap.Round,
-                modifier = Modifier.size(100.dp).clearAndSetSemantics {
-                    contentDescription = timeLeftContentDescription
+                val timeLeftContentDescription = if (state is ChangeServerViewState.Locked)
+                    contentDescriptionAvailableTime(state)
+                else
+                    stringResource(R.string.server_change_progress_finished_contend_description)
+                CircularProgressIndicator(
+                    progress = animatedProgress.value,
+                    strokeWidth = 8.dp,
+                    color = ProtonTheme.colors.brandNorm,
+                    trackColor = if (state is ChangeServerViewState.Locked) ProtonTheme.colors.backgroundSecondary
+                        else ProtonTheme.colors.notificationSuccess,
+                    strokeCap = StrokeCap.Round,
+                    modifier = Modifier.size(100.dp).clearAndSetSemantics {
+                        contentDescription = timeLeftContentDescription
+                    }
+                )
+                if (state is ChangeServerViewState.Locked) {
+                    Text(
+                        text = remainingTimeText,
+                        style = ProtonTheme.typography.defaultNorm,
+                        modifier = Modifier.clearAndSetSemantics { /* progress indicator has */ }
+                    )
+                } else {
+                    Icon(
+                        painter = painterResource(id = CoreR.drawable.ic_proton_checkmark),
+                        contentDescription = null,
+                        tint = ProtonTheme.colors.iconNorm
+                    )
                 }
-            )
-            if (state is ChangeServerViewState.Locked) {
-                Text(
-                    text = remainingTimeText,
-                    style = ProtonTheme.typography.defaultNorm,
-                    modifier = Modifier.clearAndSetSemantics { /* progress indicator has */ }
-                )
-            } else {
-                Icon(
-                    painter = painterResource(id = CoreR.drawable.ic_proton_checkmark),
-                    contentDescription = null,
-                    tint = ProtonTheme.colors.iconNorm
-                )
             }
         }
 
@@ -250,24 +248,18 @@ private fun UpgradeModalContent(
                     modifier = Modifier.padding(8.dp)
                 )
             }
-            Text(
-                text = stringResource(id = R.string.server_change_upsell),
-                style = ProtonTheme.typography.defaultWeak,
-                modifier = Modifier.padding(8.dp)
-            )
         }
 
         val horizontalPadding = Modifier.padding(horizontal = 16.dp)
-        if (state is ChangeServerViewState.Locked) {
-            VpnSolidButton(
-                text = stringResource(R.string.upgrade),
-                onClick = onUpgradeClick,
-                modifier = horizontalPadding,
-            )
-        } else {
-            VpnOutlinedNeutralButton(
+        when (state) {
+            ChangeServerViewState.Unlocked -> VpnOutlinedNeutralButton(
                 text = stringResource(id = R.string.server_change_button_title),
                 onClick = onChangeServerClick,
+                modifier = horizontalPadding,
+            )
+            is ChangeServerViewState.Locked, ChangeServerViewState.Disabled, null -> VpnOutlinedNeutralButton(
+                text = stringResource(R.string.close),
+                onClick = onDismissRequest,
                 modifier = horizontalPadding,
             )
         }
@@ -324,7 +316,7 @@ fun BottomSheetContentPreview() {
             UpgradeModalContent(
                 state = ChangeServerViewState.Locked(12, 20, true),
                 onChangeServerClick = {},
-                onUpgradeClick = {}
+                onDismissRequest = {}
             )
         }
     }

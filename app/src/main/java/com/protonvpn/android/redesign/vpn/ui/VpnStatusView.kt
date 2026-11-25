@@ -28,7 +28,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -77,7 +76,6 @@ import com.protonvpn.android.netshield.NetShieldBottomSettings
 import com.protonvpn.android.netshield.NetShieldStats
 import com.protonvpn.android.netshield.NetShieldView
 import com.protonvpn.android.netshield.NetShieldViewState
-import com.protonvpn.android.redesign.base.ui.UpsellBannerContent
 import com.protonvpn.android.utils.Constants
 import com.protonvpn.android.utils.openUrl
 import com.protonvpn.android.vpn.DnsOverride
@@ -294,6 +292,9 @@ private fun VpnConnectedView(
     netShieldActions: NetShieldActions,
     transitionValue: () -> Float
 ) {
+    // The connection card owns the neutral change-server countdown and lock state.
+    if (banner !is StatusBanner.NetShieldBanner) return
+
     var isModalVisible by remember { mutableStateOf(false) }
     Surface(
         color = ProtonTheme.colors.backgroundSecondary.copy(alpha = 0.86F),
@@ -306,38 +307,12 @@ private fun VpnConnectedView(
             }
             .padding(top = 8.dp)
     ) {
-        when (banner) {
-            is StatusBanner.NetShieldBanner -> {
-                NetShieldView(
-                    state = banner.netShieldState,
-                    onNavigateToSubsetting = { isModalVisible = !isModalVisible }
-                )
-            }
-
-            StatusBanner.UnwantedCountry -> {
-                UpsellBannerContent(
-                    titleRes = R.string.not_wanted_country_title,
-                    descriptionRes = R.string.not_wanted_country_description,
-                    iconRes = R.drawable.upsell_worldwide_cover_exclamation,
-                    modifier = Modifier
-                        .clickable(onClick = netShieldActions.onChangeServerPromoUpgrade)
-                        .padding(16.dp)
-                )
-            }
-
-            StatusBanner.UpgradePlus -> {
-                UpsellBannerContent(
-                    R.string.netshield_free_title,
-                    descriptionRes = R.string.netshield_free_description,
-                    iconRes = R.drawable.ic_netshield_promo,
-                    modifier = Modifier
-                        .clickable(onClick = netShieldActions.onUpgradeNetShield)
-                        .padding(16.dp),
-                )
-            }
-        }
+        NetShieldView(
+            state = banner.netShieldState,
+            onNavigateToSubsetting = { isModalVisible = !isModalVisible }
+        )
     }
-    if (isModalVisible && banner is StatusBanner.NetShieldBanner) {
+    if (isModalVisible) {
         val context = LocalContext.current
         SimpleModalBottomSheet(
             content = {

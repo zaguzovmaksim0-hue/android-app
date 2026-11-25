@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import java.util.Locale
 import javax.inject.Inject
 
+@Suppress("UNUSED_PARAMETER")
 class VpnStatusViewStateFlow(
     vpnStatusProvider: VpnStatusProviderUI,
     serverListUpdaterPrefs: ServerListUpdaterPrefs,
@@ -85,26 +86,20 @@ class VpnStatusViewStateFlow(
         combine(
             vpnConnectionManager.netShieldStats,
             currentUser.vpnUserFlow,
-            changeServerViewStateFlow,
-            hasPromoBannerFlow,
             dnsOverrideFlow,
-        ) { stats, user, changeServer, hasPromoBanner, dnsOverride ->
+        ) { stats, user, dnsOverride ->
             val availability = user.getNetShieldAvailability()
             val isNetShieldEnabled = connectionSettings.connectionSettings.isNetShieldEnabled
-            when {
-                hasPromoBanner && availability != NetShieldAvailability.AVAILABLE -> null
-                changeServer is ChangeServerViewState.Locked -> StatusBanner.UnwantedCountry
-                else -> when (availability) {
-                    NetShieldAvailability.AVAILABLE -> {
-                        val netShieldState = if (dnsOverride != DnsOverride.None) {
-                            NetShieldViewState.Unavailable(isNetShieldEnabled, dnsOverride)
-                        } else {
-                            NetShieldViewState.Available(isNetShieldEnabled, stats)
-                        }
-                        StatusBanner.NetShieldBanner(netShieldState)
+            when (availability) {
+                NetShieldAvailability.AVAILABLE -> {
+                    val netShieldState = if (dnsOverride != DnsOverride.None) {
+                        NetShieldViewState.Unavailable(isNetShieldEnabled, dnsOverride)
+                    } else {
+                        NetShieldViewState.Available(isNetShieldEnabled, stats)
                     }
-                    NetShieldAvailability.UPGRADE_VPN_PLUS -> StatusBanner.UpgradePlus
+                    StatusBanner.NetShieldBanner(netShieldState)
                 }
+                NetShieldAvailability.UPGRADE_VPN_PLUS -> null
             }
         }
     }.distinctUntilChanged()
