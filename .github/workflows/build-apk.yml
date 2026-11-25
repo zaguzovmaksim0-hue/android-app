@@ -1,0 +1,148 @@
+name: Build Proton VPN baseline APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_id:
+        description: Android application ID
+        required: true
+        type: string
+        default: ch.protonvpn.android.clean
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      APP_ID: ${{ inputs.app_id }}
+      OVERRIDE_VERSION_NAME: "5.21.57.0"
+    steps:
+      - name: Checkout baseline
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Free disk space
+        shell: bash
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/ghc /usr/local/share/boost
+          df -h /
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android build dependencies
+        shell: bash
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$sdkmanager"
+          (set +o pipefail; yes | "$sdkmanager" --licenses)
+          "$sdkmanager" --install "platforms;android-36" "ndk;28.1.13356709" "build-tools;36.0.0" "build-tools;35.0.0" "cmake;3.22.1"
+          if ! command -v swig >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y swig
+          fi
+          swig -version
+          df -h /
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Prepare optional persistent debug key
+        shell: bash
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [[ -z "$DEBUG_KEYSTORE_B64" ]]; then
+            echo "::warning::Using runner debug keystore; subsequent builds may have a different signing key."
+          else
+            umask 077
+            key="$RUNNER_TEMP/proton-baseline-debug.keystore"
+            printf '%s' "$DEBUG_KEYSTORE_B64" | base64 --decode > "$key"
+            keytool -list -keystore "$key" -storepass android -alias androiddebugkey >/dev/null
+            printf 'DEBUG_KEYSTORE_FILE=%s\n' "$key" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build baseline APK
+        shell: bash
+        run: |
+          if [[ ! "$APP_ID" =~ ^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$ ]]; then
+            echo "::error::Invalid Android application ID"
+            exit 1
+          fi
+          ./gradlew :app:assembleProductionVanillaOpenSourceDebug "-PappId=$APP_ID" --no-daemon --stacktrace
+
+      - name: Audit APK and merged manifest
+        shell: bash
+        run: |
+          mapfile -d '' -t apks < <(find app/build/outputs/apk -type f -name '*.apk' -print0 | sort -z)
+          if [[ "${#apks[@]}" -eq 0 ]]; then
+            echo "::error::No APKs found"
+            exit 1
+          fi
+          printf 'Found %s APK(s):\n' "${#apks[@]}"
+          printf '  %s\n' "${apks[@]}"
+          mkdir -p baseline-artifacts
+          analyzer="$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          test -x "$analyzer"
+          for index in "${!apks[@]}"; do
+            filename="$(basename "${apks[index]}")"
+            report="merged-manifest-audit.txt"
+            if [[ "${#apks[@]}" -gt 1 ]]; then
+              printf -v filename '%03d-%s' "$((index + 1))" "$filename"
+              report="${filename%.apk}-merged-manifest-audit.txt"
+            fi
+            apk="baseline-artifacts/$filename"
+            cp "${apks[index]}" "$apk"
+            (cd baseline-artifacts; sha256sum "$filename" > "$filename.sha256"; sha256sum -c "$filename.sha256")
+            manifest="$RUNNER_TEMP/proton-merged-manifest-$index.xml"
+            "$analyzer" manifest print "$apk" > "$manifest"
+            python3 - "$manifest" "$APP_ID" <<'PY' > "baseline-artifacts/$report"
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          root = ET.parse(source).getroot()
+          ns = "{http://schemas.android.com/apk/res/android}"
+          package = root.get("package")
+          print("package:", package)
+          if package != sys.argv[2]:
+              raise SystemExit(f"Unexpected package: {package}")
+          for tag in ("provider", "permission", "uses-permission", "uses-permission-sdk-23", "permission-group", "permission-tree"):
+              print(f"\n[{tag}]")
+              for element in root.iter(tag):
+                  print(" ".join(f"{k.replace(ns, 'android:')}={v}" for k, v in element.attrib.items()))
+          print("\n[deep links]")
+          for element in root.iter("data"):
+              if ns + "scheme" in element.attrib:
+                  print(" ".join(f"{k.replace(ns, 'android:')}={v}" for k, v in element.attrib.items()))
+          print("\n[full packaged merged manifest]")
+          print(source.read_text(encoding="utf-8"))
+          PY
+            cat "baseline-artifacts/$report"
+            rm -f "$manifest"
+          done
+
+      - name: Remove temporary signing key
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/proton-baseline-debug.keystore"
+
+      - name: Upload baseline artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: protonvpn-baseline-5.21.57.0
+          path: |
+            baseline-artifacts/*.apk
+            baseline-artifacts/*.sha256
+            baseline-artifacts/*merged-manifest-audit.txt
+          if-no-files-found: error
