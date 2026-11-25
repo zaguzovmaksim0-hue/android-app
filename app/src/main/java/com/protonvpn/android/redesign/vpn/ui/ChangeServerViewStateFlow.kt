@@ -24,7 +24,6 @@ import com.protonvpn.android.auth.usecase.CurrentUser
 import com.protonvpn.android.di.WallClock
 import com.protonvpn.android.redesign.vpn.ChangeServerManager
 import com.protonvpn.android.ui.home.vpn.ChangeServerPrefs
-import com.protonvpn.android.utils.tickFlow
 import com.protonvpn.android.vpn.VpnState
 import com.protonvpn.android.vpn.VpnStatusProviderUI
 import dagger.Reusable
@@ -37,7 +36,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
-import kotlin.time.Duration.Companion.seconds
 
 sealed class ChangeServerViewState {
     object Unlocked : ChangeServerViewState()
@@ -54,6 +52,7 @@ sealed class ChangeServerViewState {
 }
 
 @Reusable
+@Suppress("UNUSED_PARAMETER", "unused")
 class ChangeServerViewStateFlow @Inject constructor(
     changeServerConfigFlow: ChangeServerConfigFlow,
     private val changeServerPrefs: ChangeServerPrefs,
@@ -64,31 +63,6 @@ class ChangeServerViewStateFlow @Inject constructor(
 ): Flow<ChangeServerViewState?> {
 
     private val isFreeUser = currentUser.vpnUserFlow.map { it?.isFreeUser == true }
-
-    private val restrictedStateFlow = combine(
-        changeServerPrefs.lastChangeTimestampFlow,
-        changeServerPrefs.changeCounterFlow,
-        tickFlow(1.seconds, clock),
-        changeServerConfigFlow
-    ) { lastChangeTimestamp, actionCounter, timestamp, changeServerConfig ->
-        val elapsedSeconds = (timestamp - lastChangeTimestamp) / 1000
-        val delayInSeconds =
-            if (changeServerPrefs.changeCounter == changeServerConfig.maxAttemptCount)
-                changeServerConfig.longDelayInSeconds
-            else
-                changeServerConfig.shortDelayInSeconds
-        val remainingCooldown = delayInSeconds - elapsedSeconds
-
-        if (remainingCooldown > 0) {
-            ChangeServerViewState.Locked(
-                remainingCooldown.toInt(),
-                delayInSeconds,
-                actionCounter == changeServerConfig.maxAttemptCount
-            )
-        } else {
-            ChangeServerViewState.Unlocked
-        }
-    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val freeUserChangeServerState: Flow<ChangeServerViewState?> =
@@ -106,8 +80,9 @@ class ChangeServerViewStateFlow @Inject constructor(
                     flowOf(ChangeServerViewState.Unlocked)
                 vpnStatus.state.isEstablishingConnection && isChanging ->
                     flowOf(ChangeServerViewState.Disabled)
+                // A completed connection does not impose a local cooldown in this client.
                 vpnStatus.state is VpnState.Connected ->
-                    restrictedStateFlow
+                    flowOf(ChangeServerViewState.Unlocked)
                 else ->
                     flowOf(null)
             }

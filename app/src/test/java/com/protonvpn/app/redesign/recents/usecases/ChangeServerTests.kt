@@ -166,28 +166,34 @@ class ChangeServerTests {
     }
 
     @Test
-    fun `change server is locked after first attempt`() = testScope.runTest {
+    fun `change server remains available after first completed attempt`() = testScope.runTest {
         changeServerViewStateFlow.test {
             assertNull(awaitItem())
             changeServerManager.changeServer(mockVpnUiDelegate)
-            assertEquals(ChangeServerViewState.Locked(SMALL_DELAY_S, SMALL_DELAY_S, false), awaitItem())
+            assertEquals(ChangeServerViewState.Unlocked, awaitItem())
+            runCurrent()
+            assertEquals(1, changeServerPrefs.changeCounter)
+            expectNoEvents()
         }
     }
 
     @Test
-    fun `several changes lock for longer period of time`() = testScope.runTest {
+    fun `completed changes remain available at the original attempt threshold`() = testScope.runTest {
         changeServerViewStateFlow.test {
-            repeat(MAX_ATTEMPTS) {
+            assertNull(awaitItem())
+            repeat(MAX_ATTEMPTS) { index ->
                 changeServerManager.changeServer(mockVpnUiDelegate)
+                runCurrent()
+                if (index == 0) assertEquals(ChangeServerViewState.Unlocked, awaitItem())
+                expectNoEvents()
             }
-            runCurrent()
-            assertEquals(ChangeServerViewState.Locked(LARGE_DELAY_S, LARGE_DELAY_S, true), expectMostRecentItem())
+            assertEquals(MAX_ATTEMPTS, changeServerPrefs.changeCounter)
         }
     }
 
     @Test
     fun `updating to plus removes change server`() =
-        testUpdatingToPlus(VpnState.Connected, ChangeServerViewState.Locked(SMALL_DELAY_S, SMALL_DELAY_S, false))
+        testUpdatingToPlus(VpnState.Connected, ChangeServerViewState.Unlocked)
 
     @Test
     fun `updating to plus removes change server while connecting`() =
@@ -228,7 +234,7 @@ class ChangeServerTests {
     }
 
     @Test
-    fun `while locked it's still possible to change server when connecting`() = testScope.runTest {
+    fun `after repeated attempts retry becomes available when connecting takes long`() = testScope.runTest {
         every { mockVpnConnectionManager.connect(any(), any(), any()) } answers {
             vpnStateMonitor.updateStatus(VpnStateMonitor.Status(VpnState.Connecting, connectionParams))
         }
