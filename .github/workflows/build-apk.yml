@@ -1,4 +1,4 @@
-name: Build Proton VPN baseline APK
+name: Build Proton VPN clean Release APK
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
       APP_ID: ${{ inputs.app_id }}
       OVERRIDE_VERSION_NAME: "5.21.57.0"
     steps:
-      - name: Checkout baseline
+      - name: Checkout clean Release
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
@@ -71,14 +71,14 @@ jobs:
             printf 'DEBUG_KEYSTORE_FILE=%s\n' "$key" >> "$GITHUB_ENV"
           fi
 
-      - name: Build baseline APK
+      - name: Build clean Release APK
         shell: bash
         run: |
           if [[ ! "$APP_ID" =~ ^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$ ]]; then
             echo "::error::Invalid Android application ID"
             exit 1
           fi
-          ./gradlew :app:assembleProductionVanillaOpenSourceDebug "-PappId=$APP_ID" --no-daemon --stacktrace
+          ./gradlew :app:assembleProductionVanillaOpenSourceRelease "-PappId=$APP_ID" --no-daemon --stacktrace
 
       - name: Audit APK and merged manifest
         shell: bash
@@ -111,7 +111,11 @@ jobs:
           from pathlib import Path
 
           source = Path(sys.argv[1])
-          root = ET.parse(source).getroot()
+          manifest_text = source.read_text(encoding="utf-8")
+          for forbidden in ("leakcanary", "plumber"):
+              if forbidden in manifest_text.casefold():
+                  raise SystemExit(f"Forbidden debug component in manifest: {forbidden}")
+          root = ET.fromstring(manifest_text)
           ns = "{http://schemas.android.com/apk/res/android}"
           package = root.get("package")
           print("package:", package)
@@ -137,10 +141,10 @@ jobs:
         shell: bash
         run: rm -f "$RUNNER_TEMP/proton-baseline-debug.keystore"
 
-      - name: Upload baseline artifacts
+      - name: Upload clean Release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: protonvpn-baseline-5.21.57.0
+          name: protonvpn-clean-release-5.21.57.0
           path: |
             baseline-artifacts/*.apk
             baseline-artifacts/*.sha256
