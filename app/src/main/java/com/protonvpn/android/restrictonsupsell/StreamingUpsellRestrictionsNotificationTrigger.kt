@@ -28,7 +28,6 @@ import com.protonvpn.android.R
 import com.protonvpn.android.di.WallClock
 import com.protonvpn.android.notifications.NotificationChannels
 import com.protonvpn.android.redesign.app.ui.CreateLaunchIntent
-import com.protonvpn.android.redesign.app.ui.MainActivity
 import com.protonvpn.android.tv.IsTvCheck
 import com.protonvpn.android.utils.Constants
 import dagger.Reusable
@@ -54,10 +53,7 @@ class ShowStreamingUpsellNotification @Inject constructor(
     operator fun invoke() {
         if (!notificationManager.areNotificationsEnabled()) return
 
-        val launchIntent =
-            createLaunchIntent.forNotification().apply {
-                putExtra(MainActivity.EXTRA_SHOW_STREAMING_RESTRICTION_UPSELL, true)
-            }
+        val launchIntent = createLaunchIntent.forNotification()
         val pendingIntent =
             PendingIntent.getActivity(
                 appContext,

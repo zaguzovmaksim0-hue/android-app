@@ -32,12 +32,12 @@ import com.protonvpn.android.base.ui.VpnOutlinedButton
 import com.protonvpn.android.base.ui.VpnSolidButton
 import com.protonvpn.android.base.ui.ProtonVpnPreview
 import com.protonvpn.android.redesign.base.ui.SettingsItem
-import com.protonvpn.android.redesign.base.ui.UpsellBanner
 import com.protonvpn.android.base.ui.VpnDivider
 import me.proton.core.accountmanager.presentation.compose.SecurityKeysSettingsItemHint
 import me.proton.core.compose.theme.ProtonTheme
 import me.proton.core.domain.entity.UserId
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun AccountSettings(
     viewState: SettingsViewModel.AccountSettingsViewState,
@@ -53,16 +53,6 @@ fun AccountSettings(
         title = stringResource(R.string.settings_account_settings_title),
         onClose = onClose,
     ) {
-        if (viewState.upgradeToPlusBanner) {
-            UpsellBanner(
-                titleRes = null,
-                descriptionRes = R.string.vpnplus_upsell_banner_description,
-                iconRes = R.drawable.banner_icon_vpnplus,
-                onClick = onUpgrade,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
-
         SettingsItem(
             name = viewState.displayName,
             subTitle = viewState.planDisplayName ?: stringResource(R.string.accountFree),

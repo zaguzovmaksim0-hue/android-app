@@ -30,19 +30,11 @@ import com.protonvpn.android.ui.planupgrade.UpgradeDialogLauncher
 import com.protonvpn.android.utils.flatMapLatestFreeUser
 import dagger.Reusable
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.time.Duration.Companion.hours
-import kotlin.time.Duration.Companion.minutes
-
-private val UpsellDialogSinceLastEventMs = 1.hours.inWholeMilliseconds
-private val UpsellDialogMinIntervalMs = 1.minutes.inWholeMilliseconds
 
 @Reusable
 class OpenUpgradeStreamingBlockDialog @Inject constructor(
@@ -55,6 +47,7 @@ class OpenUpgradeStreamingBlockDialog @Inject constructor(
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
+@Suppress("UNUSED_PARAMETER", "unused")
 class StreamingUpsellRestrictionsDialogTrigger @Inject constructor(
     private val mainScope: CoroutineScope,
     private val isTv: IsTvCheck,
@@ -65,11 +58,6 @@ class StreamingUpsellRestrictionsDialogTrigger @Inject constructor(
     private val openUpgradeDialog: OpenUpgradeStreamingBlockDialog,
     @param:WallClock private val now: () -> Long,
 ) {
-    // There are two independent paths to show the upsell dialog and they are difficult to
-    // synchronize. Use this lastShownTimestamp to make sure we don't show the dialog twice within
-    // a short time frame.
-    private var lastShownTimestamp: Long? = null
-
     fun start() {
         // TV upsell will be implemented in the future.
         if (isTv()) return
@@ -88,53 +76,8 @@ class StreamingUpsellRestrictionsDialogTrigger @Inject constructor(
                 }
             }
             .launchIn(mainScope)
-
-        foregroundActivityTracker.foregroundBackgroundTransitionFlow
-            .onEach { (wasInForeground, isInForeground) ->
-                if (!wasInForeground && isInForeground && shouldShowUpsellDialogOnOpen()) {
-                    val foregroundActivity = foregroundActivityTracker.foregroundActivity
-                    if (foregroundActivity != null) {
-                        showNow(foregroundActivity)
-                    }
-                }
-            }
-            .launchIn(mainScope)
     }
 
-    suspend fun showNow(activity: Activity) {
-        // Ideally the upsell notification should be hidden when the user upgrades but it should
-        // be a rare case and checking user type here is much simpler.
-        if (currentUser.vpnUser()?.isFreeUser != true) return
-        val lastShown = lastShownTimestamp
-        if (lastShown != null && lastShown > now() - UpsellDialogMinIntervalMs) return
-
-        onShowUpsellDialogShown()
-        openUpgradeDialog(activity)
-    }
-
-    private suspend fun shouldShowUpsellDialogOnOpen(): Boolean {
-        if (currentUser.vpnUser()?.isFreeUser != true) {
-            return false
-        }
-
-        val state = restrictionsUpsellStore.state.first().streaming
-        val withinTime = state.lastEventTimestamp + UpsellDialogSinceLastEventMs > now()
-        val wasShownForThisConnection =
-            state.lastEventConnectionId != null &&
-                state.lastEventConnectionId == state.lastDialogConnectionId
-        return withinTime && !wasShownForThisConnection
-    }
-
-    private fun onShowUpsellDialogShown() {
-        lastShownTimestamp = now()
-        mainScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            restrictionsUpsellStore.update { current ->
-                val streaming =
-                    current.streaming.copy(
-                        lastDialogConnectionId = current.streaming.lastEventConnectionId
-                    )
-                current.copy(streaming = streaming)
-            }
-        }
-    }
+    // Retain the entry point for existing notification intents without opening a promotion.
+    suspend fun showNow(activity: Activity) = Unit
 }

@@ -58,7 +58,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -71,7 +70,6 @@ import com.protonvpn.android.redesign.base.ui.CollapsibleToolbarScaffold
 import com.protonvpn.android.redesign.base.ui.InfoSheet
 import com.protonvpn.android.redesign.base.ui.InfoSheetState
 import com.protonvpn.android.redesign.base.ui.InfoType
-import com.protonvpn.android.redesign.base.ui.UpsellBanner
 import com.protonvpn.android.redesign.base.ui.rememberInfoSheetState
 import com.protonvpn.android.redesign.vpn.ui.countryName
 import com.protonvpn.android.telemetry.UpgradeSource
@@ -314,6 +312,7 @@ fun ServerGroupItemsList(
     )
 }
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun ServerGroupItemsList(
     modifier: Modifier = Modifier,
@@ -325,23 +324,23 @@ fun ServerGroupItemsList(
     navigateToUpsell: (ServerGroupUiItem.BannerType) -> Unit,
     horizontalContentPadding: Dp = 0.dp,
 ) {
+    val visibleItems = items.filterNot { it is ServerGroupUiItem.Banner }
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(horizontal = horizontalContentPadding),
         state = listState,
     ) {
-        items.forEachIndexed { index, item ->
+        visibleItems.forEachIndexed { index, item ->
             item {
                 when (item) {
                     is ServerGroupUiItem.Header ->
                         ServerGroupHeader(item, onOpenInfo = onOpenInfo)
 
-                    is ServerGroupUiItem.Banner ->
-                        ServerGroupBanner(item, navigateToUpsell)
+                    is ServerGroupUiItem.Banner -> Unit
 
                     is ServerGroupUiItem.ServerGroup -> {
                         ServerGroupItem(item, onItemOpen = onItemOpen, onItemClick = onItemClick)
-                        if (index < items.lastIndex && items[index + 1] is ServerGroupUiItem.ServerGroup)
+                        if (index < visibleItems.lastIndex && visibleItems[index + 1] is ServerGroupUiItem.ServerGroup)
                             VpnDivider()
                     }
 
@@ -377,59 +376,6 @@ fun UpgradeDialogLauncherVM.launchBannerUpgradeDialog(context: Context, bannerTy
 
         is ServerGroupUiItem.BannerType.Search ->
             launch(context, UpgradeSource.COUNTRIES, UpgradeTrigger.SEARCH)
-    }
-}
-
-@Composable
-private fun ServerGroupBanner(
-    item: ServerGroupUiItem.Banner,
-    navigateToUpsell: (ServerGroupUiItem.BannerType) -> Unit
-) {
-    val modifier = Modifier.padding(vertical = 8.dp, horizontal = 16.dp)
-    val onClick = { navigateToUpsell(item.type) }
-
-    when (item.type) {
-        ServerGroupUiItem.BannerType.Countries ->
-            UpsellBanner(
-                titleRes = null,
-                descriptionRes = R.string.countries_upsell_banner_description,
-                iconRes = R.drawable.banner_icon_worldwide_coverage,
-                onClick = onClick,
-                modifier = modifier,
-            )
-        ServerGroupUiItem.BannerType.SecureCore ->
-            UpsellBanner(
-                titleRes = null,
-                descriptionRes = R.string.secure_core_upsell_banner_description,
-                iconRes = R.drawable.banner_icon_secure_core,
-                onClick = onClick,
-                modifier = modifier,
-            )
-        ServerGroupUiItem.BannerType.P2P ->
-            UpsellBanner(
-                titleRes = null,
-                descriptionRes = R.string.p2p_upsell_banner_description,
-                iconRes = R.drawable.banner_icon_p2p,
-                onClick = onClick,
-                modifier = modifier,
-            )
-        ServerGroupUiItem.BannerType.Tor ->
-            UpsellBanner(
-                titleRes = null,
-                descriptionRes = R.string.tor_upsell_banner_description,
-                iconRes = R.drawable.banner_icon_tor,
-                onClick = onClick,
-                modifier = modifier,
-            )
-        is ServerGroupUiItem.BannerType.Search ->
-            UpsellBanner(
-                titleRes = R.string.search_upsell_banner_title,
-                descriptionRes = 0,
-                description = pluralStringResource(R.plurals.search_upsell_banner_message, item.type.countriesCount, item.type.countriesCount),
-                iconRes = R.drawable.upsell_card_worldwide,
-                onClick = onClick,
-                modifier = modifier,
-            )
     }
 }
 

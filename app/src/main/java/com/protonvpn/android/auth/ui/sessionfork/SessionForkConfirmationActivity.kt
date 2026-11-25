@@ -47,7 +47,7 @@ import com.protonvpn.android.redesign.app.ui.VpnApp
 import com.protonvpn.android.redesign.base.ui.ProtonSnackbarType
 import com.protonvpn.android.redesign.base.ui.showSnackbar
 import com.protonvpn.android.ui.main.MainActivityHelper
-import com.protonvpn.android.ui.planupgrade.UpgradeDialogLauncherVM
+import com.protonvpn.android.ui.planupgrade.comparison_table.UpgradeDialogActivityV2
 import com.protonvpn.android.utils.filterTouchesWhenObscured
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -66,7 +66,6 @@ class SessionForkConfirmationActivity : FragmentActivity() {
 
     private val viewModel by viewModels<SessionForkConfirmationViewModel>()
     private val accountViewModel by viewModels<SessionForkConfirmationAccountViewModel>()
-    private val upgradeDialogLauncher by viewModels<UpgradeDialogLauncherVM>()
 
     private val activityHelper = object : MainActivityHelper(this) {
         override suspend fun onLoginNeeded() {
@@ -95,10 +94,10 @@ class SessionForkConfirmationActivity : FragmentActivity() {
                 accountState in arrayOf(AccountViewModel.State.Processing, AccountViewModel.State.Initial)
         }
 
+        // Consume the onboarding event without opening a purchase screen.
         viewModel.eventLaunchUpgrade
             .receiveAsFlow()
             .flowWithLifecycle(lifecycle)
-            .onEach { upgradeDialogLauncher.launchOnboarding(this) }
             .launchIn(lifecycleScope)
         lifecycleScope.launch {
             viewModel.initialize(intent.data, isRestarted = savedInstanceState != null)
@@ -126,7 +125,7 @@ class SessionForkConfirmationActivity : FragmentActivity() {
                                 viewState = viewState,
                                 onConfirm = viewModel::confirmFork,
                                 onClose = ::close,
-                                onStartActivity = { startActivity(it) },
+                                onStartActivity = ::startNonPromotionalActivity,
                                 onReportBug = ::openBugReport,
                                 snackbarHostState = snackbarHostState,
                                 modifier = Modifier.fillMaxSize(),
@@ -157,7 +156,7 @@ class SessionForkConfirmationActivity : FragmentActivity() {
                             viewState = ViewState.Fork.Error.Fatal,
                             onConfirm = viewModel::confirmFork,
                             onClose = ::close,
-                            onStartActivity = { startActivity(it) },
+                            onStartActivity = ::startNonPromotionalActivity,
                             onReportBug = ::openBugReport,
                             snackbarHostState = remember { SnackbarHostState() },
                             modifier = Modifier.fillMaxSize(),
@@ -177,6 +176,13 @@ class SessionForkConfirmationActivity : FragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         activityHelper.onNewIntent(accountViewModel)
+    }
+
+    private fun startNonPromotionalActivity(intent: Intent) {
+        // Completing a TV session fork may supply a promotional intent instead of the main screen.
+        if (intent.component?.className != UpgradeDialogActivityV2::class.java.name) {
+            startActivity(intent)
+        }
     }
 
     private fun openBugReport() {
