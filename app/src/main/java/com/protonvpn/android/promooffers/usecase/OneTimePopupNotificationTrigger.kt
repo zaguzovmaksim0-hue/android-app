@@ -97,7 +97,8 @@ class OneTimePopupNotificationTrigger @Inject constructor(
         val oneTimeNotification = apiNotificationManager.get().activeListFlow
             .first()
             .firstOrNull { notification ->
-                (notification.isOneTimeNotification() || notification.isNpsType() ||
+                !notification.isSuppressedAutoPopup() &&
+                    (notification.isOneTimeNotification() || notification.isNpsType() ||
                         notification.isOneTimeIapPopup()) &&
                         !promoOffersPrefs.visitedOffers.contains(notification.id)
             }
@@ -123,6 +124,14 @@ class OneTimePopupNotificationTrigger @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun ApiNotification.isSuppressedAutoPopup(): Boolean = when (type) {
+        ApiNotificationTypes.TYPE_ONE_TIME_POPUP,
+        ApiNotificationTypes.TYPE_ONE_TIME_IAP_POPUP,
+        ApiNotificationTypes.TYPE_NPS,
+        ApiNotificationTypes.TYPE_BUILTIN_UPSELL_ONBOARDING -> true
+        else -> false
     }
 
     private fun ApiNotification.isNpsType(): Boolean =

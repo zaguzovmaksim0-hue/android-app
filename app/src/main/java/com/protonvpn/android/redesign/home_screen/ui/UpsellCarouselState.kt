@@ -22,10 +22,9 @@ package com.protonvpn.android.redesign.home_screen.ui
 import com.protonvpn.android.auth.usecase.CurrentUser
 import com.protonvpn.android.ui.home.ServerListUpdaterPrefs
 import dagger.Reusable
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
-import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.flowOf
 import javax.inject.Inject
 
 data class UpsellCarouselState(
@@ -34,26 +33,13 @@ data class UpsellCarouselState(
 )
 
 @Reusable
+@Suppress("UNUSED_PARAMETER")
 class UpsellCarouselStateFlow @Inject constructor(
     currentUser: CurrentUser,
     serverListUpdaterPrefs: ServerListUpdaterPrefs,
 ): Flow<UpsellCarouselState?> {
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val stateFlow = currentUser.vpnUserFlow.mapLatest {
-        if (it?.isFreeUser == true) {
-            val countries = serverListUpdaterPrefs.vpnCountryCount
-            val servers = serverListUpdaterPrefs.vpnServerCount
-            val roundedServerCount = (servers / 100) * 100
-            UpsellCarouselState(
-                roundedServerCount = roundedServerCount,
-                countryCount = countries,
-            )
-        } else {
-            // No upsell carousel for paid users.
-            null
-        }
-    }
+    private val stateFlow: Flow<UpsellCarouselState?> = flowOf(null)
 
     override suspend fun collect(collector: FlowCollector<UpsellCarouselState?>) {
         stateFlow.collect(collector)

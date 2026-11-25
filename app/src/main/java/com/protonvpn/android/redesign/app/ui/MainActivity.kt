@@ -167,8 +167,7 @@ class MainActivity : VpnUiDelegateProvider, AppCompatActivity() {
                     is OnboardingEvent.ShowOnboarding ->
                         startActivity(Intent(this, OnboardingActivity::class.java))
 
-                    is OnboardingEvent.ShowUpgradeOnboarding ->
-                        upgradeDialogLauncher.launchOnboarding(this)
+                    is OnboardingEvent.ShowUpgradeOnboarding -> Unit
 
                     is OnboardingEvent.ShowUpgradeSuccess ->
                         showUpgradeSuccess.showPlanUpgradeSuccess(

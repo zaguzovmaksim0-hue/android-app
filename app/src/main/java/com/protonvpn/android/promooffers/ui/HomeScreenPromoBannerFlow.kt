@@ -19,18 +19,13 @@
 
 package com.protonvpn.android.promooffers.ui
 
-import com.protonvpn.android.promooffers.data.ApiNotification
-import com.protonvpn.android.promooffers.data.ApiNotificationActions
 import com.protonvpn.android.promooffers.data.ApiNotificationManager
 import com.protonvpn.android.promooffers.data.ApiNotificationOfferButton
-import com.protonvpn.android.promooffers.data.ApiNotificationTypes
 import com.protonvpn.android.promooffers.data.PromoOffersPrefs
 import com.protonvpn.android.promooffers.usecase.EnsureIapOfferStillValid
 import dagger.Reusable
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
-import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.flowOf
 import javax.inject.Inject
 
 data class PromoOfferBannerState(
@@ -44,55 +39,14 @@ data class PromoOfferBannerState(
 )
 
 @Reusable
+@Suppress("UNUSED_PARAMETER")
 class HomeScreenPromoBannerFlow @Inject constructor(
     apiNotificationManager: ApiNotificationManager,
     promoOffersPrefs: PromoOffersPrefs,
     ensureIapOfferStillValid: EnsureIapOfferStillValid,
 ) {
 
-    private val activeNotificationsFlow = combine(
-        apiNotificationManager.activeListFlow,
-        promoOffersPrefs.visitedOffersFlow
-    ) { notifications, dismissedOffers ->
-        notifications
-            .filter {
-                it.type == ApiNotificationTypes.TYPE_HOME_SCREEN_BANNER
-                        && !dismissedOffers.contains(it.id)
-            }.firstOrNull {
-                val iapParams = it.offer?.panel?.button?.panel?.iapProductDetails?.google?.toIapParams()
-                iapParams == null || ensureIapOfferStillValid(iapParams)
-            }
-    }
+    operator fun invoke(isNighMode: Boolean): Flow<PromoOfferBannerState?> = flowOf(null)
 
-    operator fun invoke(isNighMode: Boolean): Flow<PromoOfferBannerState?> =
-        activeNotificationsFlow.map { notification ->
-            notification?.let { createPromoOfferBanner(it, isNighMode) }
-        }
-
-    // Once the light theme FF is enabled we can assume that there are always both image variants present.
-    // Therefore it's ok to call invoke always for night mode in this function.
-    fun hasBannerFlow(): Flow<Boolean> = invoke(isNighMode = true).map { it != null }
-
-    private fun createPromoOfferBanner(notification: ApiNotification, isNighMode: Boolean): PromoOfferBannerState? {
-        if (notification.offer?.panel?.button != null &&
-            ApiNotificationActions.isSupported(notification.offer.panel.button.action) &&
-            notification.offer.panel.fullScreenImage?.source?.isNotEmpty() == true
-        ) {
-            val fullScreenImage = notification.offer.panel.fullScreenImage
-            val imageSource = fullScreenImage.source.first()
-            val imageUrl = if (isNighMode) imageSource.url else imageSource.urlLight
-            if (imageUrl != null) {
-                return PromoOfferBannerState(
-                    imageUrl,
-                    fullScreenImage.alternativeText,
-                    notification.offer.panel.button,
-                    notification.offer.panel.isDismissible,
-                    TimeUnit.SECONDS.toMillis(notification.endTime).takeIf { notification.offer.panel.showCountdown },
-                    notification.id,
-                    notification.reference,
-                )
-            }
-        }
-        return null
-    }
+    fun hasBannerFlow(): Flow<Boolean> = flowOf(false)
 }

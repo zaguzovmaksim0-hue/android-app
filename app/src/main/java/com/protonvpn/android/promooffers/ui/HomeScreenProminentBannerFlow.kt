@@ -19,7 +19,9 @@
 
 package com.protonvpn.android.promooffers.ui
 
+import com.protonvpn.android.promooffers.data.ApiNotificationActions
 import com.protonvpn.android.promooffers.data.ApiNotificationManager
+import com.protonvpn.android.promooffers.data.ApiNotificationOffer
 import com.protonvpn.android.promooffers.data.ApiNotificationOfferButton
 import com.protonvpn.android.promooffers.data.ApiNotificationProminentBannerStyle
 import com.protonvpn.android.promooffers.data.ApiNotificationTypes
@@ -51,8 +53,12 @@ class HomeScreenProminentBannerFlow @Inject constructor(
         apiNotificationManager.activeListFlow,
         promoOffersPrefs.visitedOffersFlow
     ) { notifications, dismissedOffers ->
-        notifications.firstOrNull {
-            it.type == ApiNotificationTypes.TYPE_HOME_PROMINENT_BANNER && !dismissedOffers.contains(it.id)
+        notifications.firstOrNull { notification ->
+            val offer = notification.offer
+            val banner = offer?.prominentBanner
+            notification.type == ApiNotificationTypes.TYPE_HOME_PROMINENT_BANNER &&
+                !dismissedOffers.contains(notification.id) && offer != null && banner != null &&
+                (banner.style == ApiNotificationProminentBannerStyle.WARNING || !offer.hasPurchasePromotion())
         }
     }
 
@@ -70,6 +76,16 @@ class HomeScreenProminentBannerFlow @Inject constructor(
             )
         }
     }
+
+    // REGULAR is not a reliable promotion marker. Keep notices without explicit purchase signals.
+    private fun ApiNotificationOffer.hasPurchasePromotion(): Boolean =
+        ApiNotificationActions.isInAppPurchasePopup(action) ||
+            panel?.iapProductDetails != null || !panel?.incentivePrice.isNullOrBlank() ||
+            ApiNotificationActions.isInAppPurchasePopup(panel?.button?.action) ||
+            panel?.button?.panel?.iapProductDetails != null || !panel?.button?.panel?.incentivePrice.isNullOrBlank() ||
+            ApiNotificationActions.isInAppPurchasePopup(prominentBanner?.actionButton?.action) ||
+            prominentBanner?.actionButton?.panel?.iapProductDetails != null ||
+            !prominentBanner?.actionButton?.panel?.incentivePrice.isNullOrBlank()
 
     override suspend fun collect(collector: FlowCollector<ProminentBannerState?>) {
         stateFlow.collect(collector)
